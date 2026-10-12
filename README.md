@@ -28,6 +28,14 @@ Nova Launcher is built on the open-source **Modrinth App** (Theseus) core.
 
 Custom UI, themes, Sparks economy, mini-games and extra features are part of Nova.
 
+
+
+
+
+{AI helped in its creation}
+
+
+
 ## Build from source
 
 ### Requirements
@@ -42,3 +50,7 @@ Custom UI, themes, Sparks economy, mini-games and extra features are part of Nov
 ```bash
 pnpm install
 powershell -ExecutionPolicy Bypass -File .\build-windows.ps1
+
+
+
+
