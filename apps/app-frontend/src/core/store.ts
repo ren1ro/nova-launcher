@@ -20,7 +20,7 @@ export const toasts = ref<Toast[]>([])
 export const ready = ref(false)
 export const fatalError = ref<string | null>(null)
 
-export type View = 'library' | 'browse' | 'instance' | 'accounts' | 'themes' | 'settings' | 'tetris' | 'shop'
+export type View = 'library' | 'browse' | 'instance' | 'accounts' | 'themes' | 'settings' | 'tetris' | 'shop' | 'ai'
 export const nav = reactive<{ view: View; instanceId: string | null; browseInstanceId: string | null }>({
 	view: 'library',
 	instanceId: null,

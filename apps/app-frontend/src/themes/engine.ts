@@ -75,15 +75,17 @@ export function themeToVars(th: Theme): Record<string, string> {
 }
 
 let styleEl: HTMLStyleElement | null = null
+let lastCustomCss = ''
 
 /** Применяет тему к документу (с плавным переходом) */
 export function applyTheme(th: Theme, animate = true) {
 	const root = document.documentElement
 	if (animate) {
 		root.classList.add('theme-switching')
-		window.setTimeout(() => root.classList.remove('theme-switching'), 600)
+		window.setTimeout(() => root.classList.remove('theme-switching'), 450)
 	}
-	for (const [k, v] of Object.entries(themeToVars(th))) {
+	const vars = themeToVars(th)
+	for (const [k, v] of Object.entries(vars)) {
 		if (k === 'color_scheme') root.style.colorScheme = v
 		else root.style.setProperty(k, v)
 	}
@@ -96,7 +98,11 @@ export function applyTheme(th: Theme, animate = true) {
 		styleEl.id = 'nova-theme-custom-css'
 		document.head.appendChild(styleEl)
 	}
-	styleEl.textContent = th.customCss ?? ''
+	const css = th.customCss ?? ''
+	if (css !== lastCustomCss) {
+		styleEl.textContent = css
+		lastCustomCss = css
+	}
 }
 
 export function setActiveTheme(id: string) {
@@ -104,10 +110,39 @@ export function setActiveTheme(id: string) {
 	write(KEY_ACTIVE, id)
 }
 
+/** Batch CSS applies to one frame — avoids lag while dragging color pickers */
+let applyRaf = 0
+let pendingApply: Theme | null = null
+
+export function scheduleApplyTheme(th: Theme) {
+	pendingApply = th
+	if (applyRaf) return
+	applyRaf = requestAnimationFrame(() => {
+		applyRaf = 0
+		const t = pendingApply
+		pendingApply = null
+		if (t) applyTheme(t, false)
+	})
+}
+
 export function initThemes() {
 	applyTheme(activeTheme.value, false)
-	watch(activeTheme, (th) => applyTheme(th, true), { deep: true })
-	watch(customThemes, (v) => write(KEY_CUSTOM, v), { deep: true })
+	// Animated transition only when switching theme id — NOT on every color tweak
+	watch(activeThemeId, () => {
+		applyTheme(activeTheme.value, true)
+	})
+	// Live edit: no global * transitions, coalesce to 1 frame
+	watch(activeTheme, (th) => scheduleApplyTheme(th), { deep: true })
+	// Debounce localStorage writes (was every keystroke / color tick)
+	let saveTimer: number | null = null
+	watch(
+		customThemes,
+		(v) => {
+			if (saveTimer) window.clearTimeout(saveTimer)
+			saveTimer = window.setTimeout(() => write(KEY_CUSTOM, v), 450)
+		},
+		{ deep: true },
+	)
 }
 
 export function uid() {

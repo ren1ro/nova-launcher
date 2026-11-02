@@ -167,28 +167,80 @@ interface LoaderManifest {
 }
 const manifestName = (l: Loader) => (l === 'neoforge' ? 'neo' : l)
 
+async function fetchLoaderManifest(loader: Loader): Promise<LoaderManifest> {
+	const name = manifestName(loader)
+	// Unified command (newer Theseus)
+	try {
+		return await invoke<LoaderManifest>('plugin:metadata|metadata_get_loader_versions', {
+			loader: name,
+		})
+	} catch {
+		/* try per-loader commands (older / alternate Theseus) */
+	}
+	const cmd: Record<string, string> = {
+		fabric: 'plugin:metadata|metadata_get_fabric_versions',
+		forge: 'plugin:metadata|metadata_get_forge_versions',
+		quilt: 'plugin:metadata|metadata_get_quilt_versions',
+		neo: 'plugin:metadata|metadata_get_neoforge_versions',
+		neoforge: 'plugin:metadata|metadata_get_neoforge_versions',
+	}
+	const c = cmd[name] || cmd[loader]
+	if (!c) throw new Error(`No metadata command for ${loader}`)
+	const raw = await invoke<Record<string, unknown>>(c)
+	// Accept camelCase or snake_case
+	const gameVersions = (raw.gameVersions || raw.game_versions || []) as LoaderManifest['gameVersions']
+	const versionGroups = (raw.versionGroups || raw.version_groups || []) as LoaderManifest['versionGroups']
+	return { gameVersions, versionGroups }
+}
+
+/** All loader builds listed in the manifest (Fabric meta puts them on a shared entry). */
+function allLoadersFromManifest(m: LoaderManifest): LoaderVer[] {
+	const out: LoaderVer[] = []
+	const seen = new Set<string>()
+	for (const v of m.gameVersions ?? []) {
+		for (const l of v.loaders ?? []) {
+			if (!seen.has(l.id)) {
+				seen.add(l.id)
+				out.push(l)
+			}
+		}
+	}
+	for (const g of m.versionGroups ?? []) {
+		for (const l of g.loaders ?? []) {
+			if (!seen.has(l.id)) {
+				seen.add(l.id)
+				out.push(l)
+			}
+		}
+	}
+	return out
+}
+
 /** Версии загрузчика для конкретной версии игры (новые — первыми) */
 export async function getLoaderVersions(loader: Loader, gameVersion: string): Promise<LoaderVer[]> {
 	if (loader === 'vanilla') return []
-	const m = await invoke<LoaderManifest>('plugin:metadata|metadata_get_loader_versions', {
-		loader: manifestName(loader),
-	})
-	const gv = m.gameVersions.find((v) => v.id === gameVersion)
-	if (!gv) return []
-	if (gv.loaders?.length) return gv.loaders
-	const grp = m.versionGroups?.find((g) => g.id === gv.versionGroup)
-	return grp?.loaders ?? []
+	const m = await fetchLoaderManifest(loader)
+	const gv = m.gameVersions?.find((v) => v.id === gameVersion)
+	if (gv?.loaders?.length) return gv.loaders
+	if (gv?.versionGroup) {
+		const grp = m.versionGroups?.find((g) => g.id === gv.versionGroup)
+		if (grp?.loaders?.length) return grp.loaders
+	}
+	// Fabric/Quilt meta.modrinth.com: per-game entries often have loaders: []
+	// and the real list sits on a shared placeholder entry — use that.
+	const shared = allLoadersFromManifest(m)
+	return shared
 }
 
 /** Список версий игры, для которых у загрузчика есть сборки */
 export async function getSupportedGameVersions(loader: Loader): Promise<Set<string> | null> {
 	if (loader === 'vanilla') return null
-	const m = await invoke<LoaderManifest>('plugin:metadata|metadata_get_loader_versions', {
-		loader: manifestName(loader),
-	})
-	return new Set(
-		m.gameVersions.filter((v) => v.loaders?.length || v.versionGroup).map((v) => v.id),
-	)
+	const m = await fetchLoaderManifest(loader)
+	const withOwn = m.gameVersions.filter((v) => v.loaders?.length || v.versionGroup).map((v) => v.id)
+	if (withOwn.length) return new Set(withOwn)
+	// Shared-loader manifests: every listed game id is potentially valid
+	const ids = m.gameVersions.map((v) => v.id).filter((id) => id && !id.includes('${'))
+	return ids.length ? new Set(ids) : null
 }
 
 // ================= содержимое сборки =================

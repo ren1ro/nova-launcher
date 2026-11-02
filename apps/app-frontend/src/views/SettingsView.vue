@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 
 import { type AppSettings, errMsg, getSettings, setSettings } from '../core/api'
+import { connectSystemAudio, isAudioCaptureActive, stopSystemAudio } from '../core/audioCapture'
 import {
 	BG_IMAGE_PRESETS,
 	autoTheme,
@@ -71,6 +72,28 @@ function pickPreset(url: string) {
 	liveBg.value.kind = 'image'
 	liveBg.value.enabled = true
 }
+
+const audioBusy = ref(false)
+const audioOk = ref(false)
+
+async function connectAudio() {
+	audioBusy.value = true
+	try {
+		const ok = await connectSystemAudio()
+		audioOk.value = ok
+		liveBg.value.reactToSound = ok
+		if (!ok) liveBg.value.reactToSound = false
+	} finally {
+		audioBusy.value = false
+	}
+}
+
+function disconnectAudio() {
+	void stopSystemAudio()
+	liveBg.value.reactToSound = false
+	audioOk.value = false
+}
+
 </script>
 
 <template>
@@ -129,7 +152,7 @@ function pickPreset(url: string) {
 		<div class="setrow">
 			<div>
 				<div>{{ lang === 'en' ? 'Show activity in Discord' : 'Показывать активность в Discord' }}</div>
-				<div class="d">Nova · Fabric 1.21 · имя сборки (заголовок окна + RPC, если ядро поддерживает)</div>
+				<div class="d">{{ t('discordRpcHint') }}</div>
 			</div>
 			<div class="toggle" :class="{ on: discordRpc.enabled }" @click="discordRpc.enabled = !discordRpc.enabled"></div>
 		</div>
@@ -305,6 +328,54 @@ function pickPreset(url: string) {
 				<label class="field">
 					{{ t('speed') }}: <b style="color: var(--text)">{{ liveBg.speed.toFixed(2) }}</b>
 					<input v-model.number="liveBg.speed" type="range" min="0.3" max="2" step="0.05" />
+				</label>
+			</template>
+			<div class="setrow" style="margin-top: 12px">
+				<div>
+					<div>{{ t('audioReactive') }}</div>
+					<div class="d">{{ t('audioReactiveHint') }}</div>
+				</div>
+				<div class="toggle" :class="{ on: liveBg.reactToSound && audioOk }" @click="liveBg.reactToSound && audioOk ? disconnectAudio() : connectAudio()"></div>
+			</div>
+			<div v-if="liveBg.reactToSound || audioOk" class="row" style="gap: 8px; flex-wrap: wrap; margin: 8px 0">
+				<button class="btn" :disabled="audioBusy" @click="connectAudio">{{ audioBusy ? '…' : t('audioConnect') }}</button>
+				<button v-if="audioOk" class="btn ghost" @click="disconnectAudio">{{ lang === 'en' ? 'Disconnect' : 'Отключить' }}</button>
+				<span v-if="audioOk" class="badge" style="align-self: center">{{ t('audioConnected') }}</span>
+			</div>
+			<template v-if="liveBg.reactToSound">
+				<label class="field">
+					{{ t('audioMix') }}
+					<select v-model="liveBg.audioMix" class="select">
+						<option value="combined">{{ t('audioMixCombined') }}</option>
+						<option value="audio_only">{{ t('audioMixAudioOnly') }}</option>
+					</select>
+				</label>
+				<label class="field">
+					{{ t('audioStyle') }}
+					<select v-model="liveBg.audioStyle" class="select">
+						<option value="piano">{{ t('audioStylePiano') }}</option>
+						<option value="spectrum">{{ t('audioStyleSpectrum') }}</option>
+						<option value="pulse">{{ t('audioStylePulse') }}</option>
+						<option value="rings">{{ t('audioStyleRings') }}</option>
+						<option value="orbit">{{ t('audioStyleOrbit') }}</option>
+						<option value="enhance">{{ t('audioStyleEnhance') }}</option>
+					</select>
+				</label>
+				<label class="field">
+					{{ t('audioStrength') }}: <b style="color: var(--text)">{{ (liveBg.audioStrength ?? 1.6).toFixed(2) }}</b>
+					<input v-model.number="liveBg.audioStrength" type="range" min="0.5" max="3" step="0.05" />
+				</label>
+				<label class="field">
+					{{ t('audioSensitivity') }}: <b style="color: var(--text)">{{ (liveBg.audioSensitivity ?? 1.2).toFixed(2) }}</b>
+					<input v-model.number="liveBg.audioSensitivity" type="range" min="0.3" max="2.5" step="0.05" />
+				</label>
+				<label class="field">
+					{{ t('audioBass') }}: <b style="color: var(--text)">{{ (liveBg.audioBass ?? 1.2).toFixed(2) }}</b>
+					<input v-model.number="liveBg.audioBass" type="range" min="0" max="2" step="0.05" />
+				</label>
+				<label class="field">
+					{{ t('audioSmooth') }}: <b style="color: var(--text)">{{ (liveBg.audioSmooth ?? 0.7).toFixed(2) }}</b>
+					<input v-model.number="liveBg.audioSmooth" type="range" min="0.15" max="0.92" step="0.01" />
 				</label>
 			</template>
 		</template>

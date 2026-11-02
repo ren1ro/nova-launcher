@@ -8,6 +8,7 @@ import MiniModeView from './components/MiniModeView.vue'
 import TitleBar from './components/TitleBar.vue'
 import { showWindow } from './core/api'
 import { displayName, streamer, streamerActive, toggleStreamer, t, lang, playClick, miniMode, applyMiniWindowSize } from './core/features'
+import { getSlotIcon, type NavIconSlot } from './core/iconPack'
 import { sparks, titleLabel, achPopups, ACHIEVEMENTS } from './core/economy'
 import { activeJobs, activeUser, bootstrap, fatalError, go, nav, ready, toasts, type View } from './core/store'
 import AccountsView from './views/AccountsView.vue'
@@ -18,6 +19,7 @@ import SettingsView from './views/SettingsView.vue'
 import ShopView from './views/ShopView.vue'
 import GamesView from './views/GamesView.vue'
 import ThemesView from './views/ThemesView.vue'
+import AiView from './views/AiView.vue'
 
 const items = computed(() => {
 	// depend on lang so labels update
@@ -30,6 +32,7 @@ const items = computed(() => {
 		{ id: 'settings' as View, label: t('settings'), icon: 'settings' },
 		{ id: 'tetris' as View, label: lang.value === 'en' ? 'Games' : 'Игры', icon: 'tetris' },
 		{ id: 'shop' as View, label: t('shop'), icon: 'star' },
+		{ id: 'ai' as View, label: t('ai'), icon: 'spark' },
 	]
 })
 
@@ -104,7 +107,7 @@ watch(
 					:class="{ active: nav.view === n.id || (n.id === 'library' && nav.view === 'instance') }"
 					@click="go(n.id)"
 				>
-					<Icon :name="n.icon" /><span>{{ n.label }}</span>
+					<Icon :name="n.icon" :custom="getSlotIcon(n.id as NavIconSlot, n.icon)" /><span>{{ n.label }}</span>
 				</button>
 				<div class="grow"></div>
 
@@ -149,6 +152,7 @@ watch(
 				<ThemesView v-else-if="nav.view === 'themes'" />
 				<GamesView v-else-if="nav.view === 'tetris'" />
 				<ShopView v-else-if="nav.view === 'shop'" />
+				<AiView v-else-if="nav.view === 'ai'" />
 				<SettingsView v-else />
 			</main>
 		</div>

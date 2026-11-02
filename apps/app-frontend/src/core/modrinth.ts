@@ -30,10 +30,29 @@ export interface MrVersion {
 	project_id: string
 	name: string
 	version_number: string
+	version_type?: 'release' | 'beta' | 'alpha'
 	game_versions: string[]
 	loaders: string[]
 	date_published: string
+	downloads?: number
 	dependencies: { version_id: string | null; project_id: string | null; dependency_type: string }[]
+}
+
+export interface MrProject {
+	id: string
+	slug: string
+	title: string
+	description: string
+	body: string
+	icon_url: string | null
+	downloads: number
+	followers: number
+	categories: string[]
+	project_type: ProjectKind
+	published: string
+	updated: string
+	author?: string
+	team?: string
 }
 
 async function get<T>(path: string, params: Record<string, string> = {}): Promise<T> {
@@ -85,6 +104,52 @@ export async function projectVersions(
 }
 
 export const getVersion = (id: string) => get<MrVersion>(`/version/${id}`)
+export const getProject = (idOrSlug: string) => get<MrProject>(`/project/${idOrSlug}`)
+
+/** Install a specific Modrinth version into an instance (+ required deps). */
+export async function installVersionIntoInstance(
+	inst: api.Instance,
+	versionId: string,
+): Promise<{ installed: number; warnings: string[] }> {
+	const v = await getVersion(versionId)
+	const have = new Set(await api.getInstalledProjectIds(inst.id))
+	const warnings: string[] = []
+	let installed = 0
+	const loaders = modLoadersFor(inst.loader)
+
+	const install = async (ver: MrVersion, reason: 'standalone' | 'dependency', depth: number) => {
+		if (have.has(ver.project_id) && reason === 'dependency') return
+		await api.addProjectFromVersion(inst.id, ver.id, reason)
+		have.add(ver.project_id)
+		installed++
+		if (depth > 4) return
+		for (const d of ver.dependencies) {
+			if (d.dependency_type !== 'required') continue
+			try {
+				if (d.project_id && have.has(d.project_id)) continue
+				let dv: MrVersion | null = null
+				if (d.version_id) dv = await getVersion(d.version_id)
+				else if (d.project_id) {
+					const list = await projectVersions(d.project_id, {
+						gameVersion: inst.game_version,
+						loaders: loaders.length ? loaders : undefined,
+					})
+					dv = list[0] ?? null
+				}
+				if (!dv) {
+					warnings.push(`Missing dependency (${d.project_id ?? d.version_id})`)
+					continue
+				}
+				await install(dv, 'dependency', depth + 1)
+			} catch (e) {
+				warnings.push(`Dependency failed: ${api.errMsg(e)}`)
+			}
+		}
+	}
+
+	await install(v, 'standalone', 0)
+	return { installed, warnings }
+}
 
 /**
  * Ставит проект в сборку (через ядро) вместе с обязательными зависимостями.

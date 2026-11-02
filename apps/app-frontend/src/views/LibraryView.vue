@@ -76,10 +76,10 @@ async function onRandomLocal() {
 	randomMenu.value = false
 	const inst = randomLocalInstance(instances.value, favorites.value)
 	if (!inst) {
-		toast('Нет готовых  для случайного запуска', 'error')
+		toast(t('nothingFound'), 'error')
 		return
 	}
-	toast(`Случайный выбор: «${inst.name}»`, 'info')
+	toast(inst.name, 'info')
 	await play(inst)
 }
 
@@ -97,7 +97,7 @@ function createGroup() {
 	if (!name) return
 	addGroup(name, newGroupColor.value)
 	newGroupName.value = ''
-	toast(`Группа «${name}» создана`, 'success')
+	toast(name, 'success')
 }
 </script>
 
@@ -115,11 +115,11 @@ function createGroup() {
 				<div v-if="randomMenu" class="random-menu card">
 					<button class="menu-item" @click="onRandomLocal">
 						<span>{{ t('randomLocal') }}</span>
-						<small>{{ t('randomLocal') }}</small>
+						<small>{{ t('randomLocalHint') }}</small>
 					</button>
 					<button class="menu-item" :disabled="randomBusy" @click="onRandomModpack">
 						<span>{{ randomBusy ? '…' : t('randomModpack') }}</span>
-						<small>{{ t('randomModpack') }}</small>
+						<small>{{ t('randomModpackHint') }}</small>
 					</button>
 				</div>
 			</div>
@@ -177,9 +177,9 @@ function createGroup() {
 		</select>
 		<select v-model="sort" class="select">
 			<option value="played">{{ t('recentlyPlayed') }}</option>
-			<option value="name">По имени</option>
-			<option value="created">Новые</option>
-			<option value="time">По времени игры</option>
+			<option value="name">{{ t('sortName') }}</option>
+			<option value="created">{{ t('sortNew') }}</option>
+			<option value="time">{{ t('sortTime') }}</option>
 		</select>
 		<button
 			class="btn ghost"
@@ -202,12 +202,15 @@ function createGroup() {
 		<InstanceCard v-for="(i, n) in shown" :key="i.id" :inst="i" :delay="Math.min(n, 12) * 30" />
 	</div>
 	<div v-else class="empty card">
-		<h3>{{ instances.length ? 'Ничего не найдено' : 'Сборок пока нет' }}</h3>
-		<p v-if="!instances.length">
-			Лаунчер использует папку данных Modrinth App (<code>%APPDATA%\ModrinthApp</code>). Если вы создавали сборки в
-			оригинальном приложении, они появятся здесь автоматически.
-		</p>
-		<p v-else>Измените поисковый запрос или фильтры.</p>
+		<h3>{{ instances.length ? t('nothingFound') : t('noInstances') }}</h3>
+		<p v-if="!instances.length">{{ t('noInstancesHint') }}</p>
+		<p v-else>{{ t('changeFilters') }}</p>
+		<button v-if="!instances.length" class="btn" style="margin-top: 12px" @click="creating = true">
+			{{ t('createInstance') }}
+		</button>
+		<button v-else-if="onlyFav" class="btn ghost" style="margin-top: 12px" @click="onlyFav = false">
+			{{ t('favorites') }}: OFF
+		</button>
 	</div>
 	<CreateInstanceDialog v-if="creating" @close="creating = false" />
 </template>

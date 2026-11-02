@@ -14,8 +14,15 @@ input,textarea{user-select:text}
 ::-webkit-scrollbar-thumb:hover{background:var(--accent);background-clip:padding-box;border:2px solid transparent}
 
 /* плавная смена темы */
-.theme-switching *,.theme-switching *::before,.theme-switching *::after{
-	transition:background-color .5s ease,color .5s ease,border-color .5s ease,box-shadow .5s ease,fill .5s ease !important;
+.theme-switching {
+	transition: background-color .35s ease, color .35s ease !important;
+}
+.theme-switching .sidebar,
+.theme-switching .card,
+.theme-switching .nav,
+.theme-switching .titlebar,
+.theme-switching .btn {
+	transition: background-color .35s ease, color .35s ease, border-color .35s ease, box-shadow .35s ease !important;
 }
 
 /* ---------- фон ---------- */

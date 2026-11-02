@@ -231,17 +231,17 @@ function size(n: number) {
 						<span class="badge">{{ inst.loader }}{{ inst.loader_version ? ' ' + inst.loader_version : '' }}</span>
 						<span class="badge">Minecraft {{ inst.game_version }}</span>
 						<span v-if="isRunning" class="badge run"><i class="pulse"></i>{{ t('running') }}</span>
-						<span v-else-if="job" class="badge run"><i class="pulse"></i>Установка {{ job.progress && job.progress.total ? Math.round(job.progress.current / job.progress.total * 100) + '%' : '' }}</span>
-						<span v-else-if="inst.install_stage === 'not_installed'" class="badge warn">Не установлена</span>
-						<span v-else class="badge ok">Готова</span>
+						<span v-else-if="job" class="badge run"><i class="pulse"></i>{{ t('installing') }} {{ job.progress && job.progress.total ? Math.round(job.progress.current / job.progress.total * 100) + '%' : '' }}</span>
+						<span v-else-if="inst.install_stage === 'not_installed'" class="badge warn">{{ t('notInstalled') }}</span>
+						<span v-else class="badge ok">{{ t('ready') }}</span>
 					</div>
 				</div>
 				<div class="row wrap">
-					<button v-if="isRunning" class="btn danger" @click="stop(inst)"><Icon name="stop" />Стоп</button>
-					<button v-else class="btn" :disabled="isLaunching || !!job" @click="play(inst)"><Icon name="play" />{{ isLaunching ? 'Запуск' : 'Играть' }}</button>
-					<button class="iconbtn" title="Открыть папку" @click="openFolder"><Icon name="folder" /></button>
-					<button class="iconbtn" title="Копировать сборку" @click="duplicate"><Icon name="copy" /></button>
-					<button class="iconbtn" title="Переустановить файлы игры" @click="repair"><Icon name="refresh" /></button>
+					<button v-if="isRunning" class="btn danger" @click="stop(inst)"><Icon name="stop" />{{ t('stop') }}</button>
+					<button v-else class="btn" :disabled="isLaunching || !!job" @click="play(inst)"><Icon name="play" />{{ isLaunching ? t('launching') : t('play') }}</button>
+					<button class="iconbtn" :title="t('openFolder')" @click="openFolder"><Icon name="folder" /></button>
+					<button class="iconbtn" :title="t('duplicateInstance')" @click="duplicate"><Icon name="copy" /></button>
+					<button class="iconbtn" :title="t('repairInstance')" @click="repair"><Icon name="refresh" /></button>
 					<button class="btn ghost" :disabled="exporting" @click="exportPack"><Icon name="folder" />{{ exporting ? '…' : '.mrpack' }}</button>
 					<button class="btn" :class="confirmDelete ? 'danger' : 'ghost'" @click="del"><Icon name="trash" />{{ confirmDelete ? t('confirmDelete') : t('delete') }}</button>
 				</div>
@@ -284,7 +284,7 @@ function size(n: number) {
 
 		
 		<div v-if="conflicts.length" class="card section" style="margin-top: 12px; border-color: var(--danger)">
-			<h3 style="margin: 0 0 8px; color: var(--danger)">⚠ Конфликты модов ({{ conflicts.length }})</h3>
+			<h3 style="margin: 0 0 8px; color: var(--danger)">⚠ {{ t('modConflicts') }} ({{ conflicts.length }})</h3>
 			<ul style="margin: 0; padding-left: 18px; font-size: 13px">
 				<li v-for="(c, i) in conflicts" :key="i" style="margin-bottom: 4px">
 					<b>{{ c.a }}</b> ↔ <b>{{ c.b }}</b> — {{ c.reason }}
@@ -292,23 +292,23 @@ function size(n: number) {
 			</ul>
 		</div>
 		<div class="page-head" style="margin-top: 26px">
-			<div><h2>{{ t('content') }}</h2><p>{{ items.length }} файлов · включайте, отключайте, обновляйте и удаляйте</p></div>
+			<div><h2>{{ t('content') }}</h2><p>{{ items.length }} {{ t('contentSub') }}</p></div>
 			<div class="row wrap">
-				<button v-if="updatable.length" class="btn ghost" @click="updateAll"><Icon name="refresh" />Обновить всё ({{ updatable.length }})</button>
-				<button class="btn ghost" @click="addFiles"><Icon name="upload" />Добавить файл</button>
-				<button class="btn" @click="openBrowse(inst.id)"><Icon name="store" />Найти в каталоге</button>
+				<button v-if="updatable.length" class="btn ghost" @click="updateAll"><Icon name="refresh" />{{ t('updateAll') }} ({{ updatable.length }})</button>
+				<button class="btn ghost" @click="addFiles"><Icon name="upload" />{{ t('addFile') }}</button>
+				<button class="btn" @click="openBrowse(inst.id)"><Icon name="store" />{{ t('findInCatalog') }}</button>
 			</div>
 		</div>
 
 		<div class="toolbar">
-			<input v-model="q" class="input" placeholder="Поиск по содержимому…" />
+			<input v-model="q" class="input" :placeholder="t('searchContent')" />
 			<div class="seg">
-				<button :class="{ on: filter === 'all' }" @click="filter = 'all'">Все</button>
+				<button :class="{ on: filter === 'all' }" @click="filter = 'all'">{{ t('allTypes') }}</button>
 				<button v-for="(l, k) in typeLabel" :key="k" :class="{ on: filter === k }" @click="filter = String(k)">{{ l }} {{ counts[k] ?? 0 }}</button>
 			</div>
 		</div>
 
-		<div v-if="loading && !items.length" class="empty">Загрузка…</div>
+		<div v-if="loading && !items.length" class="empty">{{ t('loading') }}</div>
 		<div v-else-if="shown.length" class="results">
 			<article v-for="i in shown" :key="i.file_path" class="card row-item" :style="{ opacity: i.enabled ? 1 : 0.55 }">
 				<img v-if="i.project?.icon_url" :src="i.project.icon_url" class="hit-ico sm" alt="" loading="lazy" />
@@ -319,18 +319,18 @@ function size(n: number) {
 						{{ i.version?.version_number ?? i.file_name }} · {{ typeLabelOf(i.project_type) }} · {{ size(i.size) }}
 					</div>
 				</div>
-				<span v-if="i.has_update" class="badge run">Есть обновление</span>
-				<button v-if="i.has_update" class="iconbtn" title="Обновить" :disabled="busyPath[i.file_path]" @click="update(i)"><Icon name="refresh" /></button>
+				<span v-if="i.has_update" class="badge run">{{ t('hasUpdate') }}</span>
+				<button v-if="i.has_update" class="iconbtn" :title="t('updateAll')" :disabled="busyPath[i.file_path]" @click="update(i)"><Icon name="refresh" /></button>
 				<div class="toggle" :class="{ on: i.enabled }" :title="i.enabled ? 'Отключить' : 'Включить'" @click="!busyPath[i.file_path] && toggle(i)"></div>
 				<button class="iconbtn" title="Удалить" :disabled="busyPath[i.file_path]" @click="remove(i)"><Icon name="trash" /></button>
 			</article>
 		</div>
 		<div v-else class="empty card">
-			<h3>{{ items.length ? 'Ничего не найдено' : 'Пока пусто' }}</h3>
-			<p v-if="!items.length">Нажмите «Найти в каталоге», чтобы установить моды, ресурспаки или шейдеры.</p>
+			<h3>{{ items.length ? t('nothingFound') : t('emptyContent') }}</h3>
+			<p v-if="!items.length">{{ t('emptyContentHint') }}</p>
 		</div>
 	</template>
-	<div v-else class="empty card"><h3>Сборка не найдена</h3><button class="btn" @click="go('library')">В библиотеку</button></div>
+	<div v-else class="empty card"><h3>{{ t('instanceNotFound') }}</h3><button class="btn" @click="go('library')">{{ t('backToLibrary') }}</button></div>
 </template>
 
 <style scoped>

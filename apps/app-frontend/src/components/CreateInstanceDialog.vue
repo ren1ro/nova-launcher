@@ -3,6 +3,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { computed, onMounted, ref, watch } from 'vue'
 
 import * as api from '../core/api'
+import { t } from '../core/features'
 import { toast, trackJob, notifyInstanceCreated } from '../core/store'
 import Icon from './Icon.vue'
 
@@ -13,6 +14,7 @@ const name = ref('')
 const loader = ref<api.Loader>('fabric')
 const loaders: api.Loader[] = ['vanilla', 'fabric', 'forge', 'neoforge', 'quilt']
 const showSnapshots = ref(false)
+const showUnstable = ref(false)
 const gameVersion = ref('')
 const loaderVersion = ref('')
 const busy = ref(false)
@@ -22,12 +24,22 @@ const manifest = ref<{ latest: { release: string; snapshot: string }; versions: 
 const supported = ref<Set<string> | null>(null)
 const loaderVersions = ref<{ id: string; stable: boolean }[]>([])
 
+const visibleLoaderVersions = computed(() => {
+	const list = loaderVersions.value
+	if (showUnstable.value) return list
+	const stableOnly = list.filter((v) => v.stable)
+	return stableOnly.length ? stableOnly : list // if API marks none stable, show all
+})
+
 const versions = computed(() => {
 	const all = manifest.value?.versions ?? []
 	const list = showSnapshots.value ? all : all.filter((v) => v.type === 'release')
-	if (loader.value !== 'vanilla' && supported.value) {
+	// Empty Set is truthy — must check size, otherwise Fabric shows 0 versions
+	if (loader.value !== 'vanilla' && supported.value && supported.value.size > 0) {
 		const ok = supported.value
-		return list.filter((v) => ok.has(v.id))
+		const filtered = list.filter((v) => ok.has(v.id))
+		// Fallback: if filter removes everything, show all releases
+		return filtered.length ? filtered : list
 	}
 	return list
 })
@@ -49,10 +61,15 @@ async function loadLoader() {
 	loaderVersions.value = []
 	if (loader.value === 'vanilla') return
 	try {
-		supported.value = await api.getSupportedGameVersions(loader.value)
+		const set = await api.getSupportedGameVersions(loader.value)
+		supported.value = set && set.size > 0 ? set : null
+		if (!set || set.size === 0) {
+			toast(`Метаданные ${loader.value} пустые — показаны все версии Minecraft`, 'info', 5000)
+		}
 		await loadLoaderVersions()
 	} catch (e) {
-		toast(`Не удалось загрузить версии ${loader.value}: ${api.errMsg(e)}`, 'error')
+		supported.value = null
+		toast(`Не удалось загрузить версии ${loader.value}: ${api.errMsg(e)}. Показаны все версии MC.`, 'error', 8000)
 	}
 }
 
@@ -63,8 +80,12 @@ async function loadLoaderVersions() {
 	}
 	try {
 		loaderVersions.value = await api.getLoaderVersions(loader.value, gameVersion.value)
-	} catch {
+		if (!loaderVersions.value.length) {
+			toast(`Нет версий ${loader.value} для ${gameVersion.value}`, 'error', 6000)
+		}
+	} catch (e) {
 		loaderVersions.value = []
+		toast(`Ошибка загрузки ${loader.value}: ${api.errMsg(e)}`, 'error', 8000)
 	}
 }
 
@@ -76,11 +97,11 @@ watch(loader, async () => {
 })
 
 // подбираем актуальные значения при смене загрузчика/версии игры
-watch([versions, loaderVersions], () => {
+watch([versions, visibleLoaderVersions], () => {
 	if (versions.value.length && !versions.value.some((v) => v.id === gameVersion.value)) {
 		gameVersion.value = versions.value[0].id
 	}
-	const lv = loaderVersions.value
+	const lv = visibleLoaderVersions.value
 	if (lv.length && !lv.some((v) => v.id === loaderVersion.value)) {
 		loaderVersion.value = (lv.find((v) => v.stable) ?? lv[0]).id
 	}
@@ -136,54 +157,51 @@ async function fromFile() {
 	<div class="modal-back" @click.self="emit('close')">
 		<div class="card modal">
 			<div class="row between">
-				<h2>Новая сборка</h2>
+				<h2>{{ t('newInstance') }}</h2>
 				<button class="iconbtn" @click="emit('close')"><Icon name="close" /></button>
 			</div>
 
 			<div class="seg" style="align-self: flex-start">
-				<button :class="{ on: tab === 'new' }" @click="tab = 'new'">Создать с нуля</button>
-				<button :class="{ on: tab === 'file' }" @click="tab = 'file'">Из файла .mrpack</button>
+				<button :class="{ on: tab === 'new' }" @click="tab = 'new'">{{ t('createFromScratch') }}</button>
+				<button :class="{ on: tab === 'file' }" @click="tab = 'file'">{{ t('fromMrpack') }}</button>
 			</div>
 
 			<template v-if="tab === 'new'">
-				<label class="field">Название
-					<input v-model="name" class="input" placeholder="Моя сборка" autofocus @keyup.enter="create" />
+				<label class="field">{{ t('instanceName') }}
+					<input v-model="name" class="input" :placeholder="t('defaultInstanceName')" autofocus @keyup.enter="create" />
 				</label>
-				<div class="field">Загрузчик
+				<div class="field">{{ t('loaderLabel') }}
 					<div class="seg" style="flex-wrap: wrap">
 						<button v-for="l in loaders" :key="l" :class="{ on: loader === l }" @click="loader = l">{{ l }}</button>
 					</div>
 				</div>
 				<div class="row wrap" style="align-items: flex-end">
-					<label class="field" style="flex: 1; min-width: 160px">Версия Minecraft
+					<label class="field" style="flex: 1; min-width: 160px">{{ t('mcVersion') }}
 						<select v-model="gameVersion" class="select" :disabled="loadingMeta">
 							<option v-for="v in versions" :key="v.id" :value="v.id">{{ v.id }}</option>
 						</select>
 					</label>
-					<label v-if="loader !== 'vanilla'" class="field" style="flex: 1; min-width: 160px">Версия {{ loader }}
+					<label v-if="loader !== 'vanilla'" class="field" style="flex: 1; min-width: 160px">{{ t('loaderVersion') }} {{ loader }}
 						<select v-model="loaderVersion" class="select" :disabled="loadingMeta">
-							<option v-for="v in loaderVersions" :key="v.id" :value="v.id">{{ v.id }}{{ v.stable ? '' : ' (нестабильная)' }}</option>
+							<option v-for="v in visibleLoaderVersions" :key="v.id" :value="v.id">{{ v.id }}{{ v.stable ? '' : ` (${t('unstable')})` }}</option>
 						</select>
 					</label>
 				</div>
 				<div class="setrow">
-					<div class="d muted">Показывать снапшоты</div>
+					<div class="d muted">{{ t('showSnapshots') }}</div>
 					<div class="toggle" :class="{ on: showSnapshots }" @click="showSnapshots = !showSnapshots"></div>
 				</div>
 				<div class="row" style="justify-content: flex-end">
-					<button class="btn ghost" @click="emit('close')">Отмена</button>
-					<button class="btn" :disabled="busy || loadingMeta" @click="create"><Icon name="plus" />Создать</button>
+					<button class="btn ghost" @click="emit('close')">{{ t('cancel') }}</button>
+					<button class="btn" :disabled="busy || loadingMeta" @click="create"><Icon name="plus" />{{ t('create') }}</button>
 				</div>
 			</template>
 
 			<template v-else>
-				<p class="muted" style="margin: 0">
-					Выберите файл модпака <code>.mrpack</code> (экспорт из Modrinth или скачанный с modrinth.com). Моды и настройки
-					будут установлены автоматически.
-				</p>
+				<p class="muted" style="margin: 0">{{ t('mrpackHint') }}</p>
 				<div class="row" style="justify-content: flex-end">
-					<button class="btn ghost" @click="emit('close')">Отмена</button>
-					<button class="btn" :disabled="busy" @click="fromFile"><Icon name="folder" />Выбрать файл…</button>
+					<button class="btn ghost" @click="emit('close')">{{ t('cancel') }}</button>
+					<button class="btn" :disabled="busy" @click="fromFile"><Icon name="folder" />{{ t('pickFile') }}</button>
 				</div>
 			</template>
 		</div>
